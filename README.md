@@ -269,19 +269,6 @@ project/
 
 ---
 
-## Git Setup
-
-```
-git init
-git add .
-git commit -m "initial commit - offline subtitle generator"
-git branch -M main
-git remote add origin <repo-url>
-git push -u origin main
-```
-
----
-
 ## License
 
 MIT
