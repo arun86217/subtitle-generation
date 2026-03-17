@@ -5,6 +5,8 @@ import argparse
 import shutil
 import hashlib
 from faster_whisper import WhisperModel
+from dotenv import load_dotenv
+load_dotenv()
 
 CHUNK_DURATION = 60
 
