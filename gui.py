@@ -3,9 +3,32 @@ import sys
 import threading
 import subprocess
 import customtkinter as ctk
-from tkinter import filedialog, messagebox
 
-APP_TITLE = "Offline Subtitle Generator"
+from tkinter import (
+    filedialog,
+    messagebox,
+)
+
+APP_TITLE = (
+    "Offline Subtitle Generator"
+)
+
+LANGUAGES = {
+    "English": "en",
+    "Hindi": "hi",
+    "Tamil": "ta",
+    "Telugu": "te",
+    "Malayalam": "ml",
+    "Kannada": "kn",
+    "Japanese": "ja",
+    "Korean": "ko",
+    "Chinese": "zh",
+    "French": "fr",
+    "German": "de",
+    "Spanish": "es",
+    "Russian": "ru",
+    "Auto Detect": "",
+}
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -16,13 +39,21 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title(APP_TITLE)
-        self.geometry("1000x750")
+
+        self.geometry("1000x780")
 
         self.video_path = ctk.StringVar()
+
         self.output_path = ctk.StringVar()
 
         self.resume_mode = ctk.BooleanVar(
             value=True
+        )
+
+        self.language_name = (
+            ctk.StringVar(
+                value="English"
+            )
         )
 
         self.process = None
@@ -33,10 +64,14 @@ class App(ctk.CTk):
         title = ctk.CTkLabel(
             self,
             text=(
-                "Offline Video → "
+                "Offline Video -> "
                 "Subtitle Generator"
             ),
-            font=("Arial", 28, "bold"),
+            font=(
+                "Arial",
+                28,
+                "bold",
+            ),
         )
 
         title.pack(pady=20)
@@ -51,7 +86,9 @@ class App(ctk.CTk):
             font=("Arial", 14),
         )
 
-        subtitle.pack(pady=(0, 20))
+        subtitle.pack(
+            pady=(0, 20)
+        )
 
         frame = ctk.CTkFrame(self)
 
@@ -71,7 +108,9 @@ class App(ctk.CTk):
             pady=(20, 5),
         )
 
-        input_frame = ctk.CTkFrame(frame)
+        input_frame = ctk.CTkFrame(
+            frame
+        )
 
         input_frame.pack(
             fill="x",
@@ -109,7 +148,9 @@ class App(ctk.CTk):
             pady=(20, 5),
         )
 
-        output_frame = ctk.CTkFrame(frame)
+        output_frame = ctk.CTkFrame(
+            frame
+        )
 
         output_frame.pack(
             fill="x",
@@ -138,6 +179,32 @@ class App(ctk.CTk):
             padx=10,
         )
 
+        ctk.CTkLabel(
+            frame,
+            text="Subtitle Language",
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(20, 5),
+        )
+
+        language_dropdown = (
+            ctk.CTkOptionMenu(
+                frame,
+                variable=self.language_name,
+                values=list(
+                    LANGUAGES.keys()
+                ),
+                width=300,
+            )
+        )
+
+        language_dropdown.pack(
+            anchor="w",
+            padx=20,
+            pady=(0, 20),
+        )
+
         ctk.CTkCheckBox(
             frame,
             text=(
@@ -148,10 +215,12 @@ class App(ctk.CTk):
         ).pack(
             anchor="w",
             padx=20,
-            pady=20,
+            pady=10,
         )
 
-        btn_frame = ctk.CTkFrame(frame)
+        btn_frame = ctk.CTkFrame(
+            frame
+        )
 
         btn_frame.pack(
             fill="x",
@@ -159,12 +228,18 @@ class App(ctk.CTk):
             pady=10,
         )
 
-        self.start_btn = ctk.CTkButton(
-            btn_frame,
-            text="Start Processing",
-            height=50,
-            font=("Arial", 18, "bold"),
-            command=self.start_processing,
+        self.start_btn = (
+            ctk.CTkButton(
+                btn_frame,
+                text="Start Processing",
+                height=50,
+                font=(
+                    "Arial",
+                    18,
+                    "bold",
+                ),
+                command=self.start_processing,
+            )
         )
 
         self.start_btn.pack(
@@ -175,13 +250,15 @@ class App(ctk.CTk):
             pady=10,
         )
 
-        self.stop_btn = ctk.CTkButton(
-            btn_frame,
-            text="Stop",
-            height=50,
-            fg_color="red",
-            hover_color="#aa0000",
-            command=self.stop_processing,
+        self.stop_btn = (
+            ctk.CTkButton(
+                btn_frame,
+                text="Stop",
+                height=50,
+                fg_color="red",
+                hover_color="#aa0000",
+                command=self.stop_processing,
+            )
         )
 
         self.stop_btn.pack(
@@ -192,20 +269,24 @@ class App(ctk.CTk):
             pady=10,
         )
 
-        self.status_label = ctk.CTkLabel(
-            frame,
-            text="Ready",
-            font=("Arial", 16),
+        self.status_label = (
+            ctk.CTkLabel(
+                frame,
+                text="Ready",
+                font=("Arial", 16),
+            )
         )
 
         self.status_label.pack(
             pady=(10, 5)
         )
 
-        self.progress_label = ctk.CTkLabel(
-            frame,
-            text="0%",
-            font=("Arial", 14),
+        self.progress_label = (
+            ctk.CTkLabel(
+                frame,
+                text="0%",
+                font=("Arial", 14),
+            )
         )
 
         self.progress_label.pack()
@@ -257,7 +338,9 @@ class App(ctk.CTk):
 
         progress = current / total
 
-        self.progress_bar.set(progress)
+        self.progress_bar.set(
+            progress
+        )
 
         self.progress_label.configure(
             text=(
@@ -295,7 +378,9 @@ class App(ctk.CTk):
                 )
 
     def select_output(self):
-        path = filedialog.askdirectory()
+        path = (
+            filedialog.askdirectory()
+        )
 
         if path:
             self.output_path.set(path)
@@ -319,7 +404,10 @@ class App(ctk.CTk):
             )
             return
 
-        self.logs.delete("1.0", "end")
+        self.logs.delete(
+            "1.0",
+            "end",
+        )
 
         self.progress_bar.set(0)
 
@@ -332,6 +420,7 @@ class App(ctk.CTk):
         )
 
         thread.daemon = True
+
         thread.start()
 
     def run_process(self):
@@ -347,6 +436,10 @@ class App(ctk.CTk):
             self.output_path.get().strip()
         )
 
+        language = LANGUAGES[
+            self.language_name.get()
+        ]
+
         cmd = [
             sys.executable,
             "process.py",
@@ -358,6 +451,12 @@ class App(ctk.CTk):
             cmd += [
                 "--output",
                 output,
+            ]
+
+        if language:
+            cmd += [
+                "--language",
+                language,
             ]
 
         if self.resume_mode.get():
@@ -400,9 +499,11 @@ class App(ctk.CTk):
                     "PROGRESS:"
                 ):
                     try:
-                        _, current, total = (
-                            line.split(":")
-                        )
+                        (
+                            _,
+                            current,
+                            total,
+                        ) = line.split(":")
 
                         self.update_progress(
                             int(current),

@@ -6,7 +6,6 @@ import argparse
 import subprocess
 
 from datetime import datetime
-
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
 
@@ -21,12 +20,30 @@ def log(msg):
 
     ts = datetime.now().strftime("%H:%M:%S")
 
-    line = f"[{ts}] {msg}"
+    safe_msg = str(msg).replace("→", "->")
 
-    print(line, flush=True)
+    line = f"[{ts}] {safe_msg}"
+
+    try:
+        print(
+            line,
+            flush=True,
+        )
+    except UnicodeEncodeError:
+        print(
+            line.encode(
+                "ascii",
+                errors="ignore",
+            ).decode(),
+            flush=True,
+        )
 
     if LOG_FILE:
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
+        with open(
+            LOG_FILE,
+            "a",
+            encoding="utf-8",
+        ) as f:
             f.write(line + "\n")
 
 
@@ -58,9 +75,15 @@ FFPROBE = get_ffmpeg_binary("ffprobe")
 
 
 def get_default_working_dir():
-    workdir = os.path.join(os.getcwd(), "workdir")
+    workdir = os.path.join(
+        os.getcwd(),
+        "workdir",
+    )
 
-    os.makedirs(workdir, exist_ok=True)
+    os.makedirs(
+        workdir,
+        exist_ok=True,
+    )
 
     return workdir
 
@@ -75,7 +98,9 @@ def get_default_model_path():
     if os.path.exists(local_model):
         return local_model
 
-    env_model = os.environ.get("WHISPER_MODEL_PATH")
+    env_model = os.environ.get(
+        "WHISPER_MODEL_PATH"
+    )
 
     if env_model and os.path.exists(env_model):
         return env_model
@@ -84,13 +109,19 @@ def get_default_model_path():
 
 
 def validate_environment():
-    work_dir = os.environ.get("WORKING_DIR")
+    work_dir = os.environ.get(
+        "WORKING_DIR"
+    )
 
     if not work_dir:
         work_dir = get_default_working_dir()
+
         os.environ["WORKING_DIR"] = work_dir
 
-    os.makedirs(work_dir, exist_ok=True)
+    os.makedirs(
+        work_dir,
+        exist_ok=True,
+    )
 
     model_path = get_default_model_path()
 
@@ -109,6 +140,7 @@ def validate_environment():
                 [binary, "-version"],
                 stderr=subprocess.STDOUT,
             )
+
         except Exception:
             raise Exception(
                 f"Missing binary:\n{binary}\n\n"
@@ -179,7 +211,9 @@ def format_ts(t):
     s = int(t % 60)
     ms = int((t - int(t)) * 1000)
 
-    return f"{h:02}:{m:02}:{s:02},{ms:03}"
+    return (
+        f"{h:02}:{m:02}:{s:02},{ms:03}"
+    )
 
 
 def ensure_dirs(base):
@@ -253,7 +287,10 @@ def extract_audio(
     if os.path.exists(audio_path):
         return
 
-    log(f"[Chunk {chunk_index}] Extracting audio")
+    log(
+        f"[Chunk {chunk_index}] "
+        f"Extracting audio"
+    )
 
     run(
         [
@@ -286,10 +323,15 @@ def get_existing_index(base):
     if not os.path.exists(srt_dir):
         return idx
 
-    files = sorted(os.listdir(srt_dir))
+    files = sorted(
+        os.listdir(srt_dir)
+    )
 
     for f in files:
-        path = os.path.join(srt_dir, f)
+        path = os.path.join(
+            srt_dir,
+            f,
+        )
 
         if not os.path.isfile(path):
             continue
@@ -313,60 +355,100 @@ def transcribe_chunk(
     offset,
     index_start,
     chunk_index,
+    language,
 ):
     if (
         os.path.exists(txt_path)
         and os.path.exists(srt_path)
     ):
-        log(f"[Chunk {chunk_index}] Already processed")
+        log(
+            f"[Chunk {chunk_index}] "
+            f"Already processed"
+        )
 
         return index_start
 
-    log(f"[Chunk {chunk_index}] Transcribing")
-
-    segments, _ = model.transcribe(
-        audio_path,
-        beam_size=5,
-        vad_filter=True,
+    log(
+        f"[Chunk {chunk_index}] "
+        f"Transcribing"
     )
 
-    tmp_txt = txt_path + ".tmp"
-    tmp_srt = srt_path + ".tmp"
+    segments, info = model.transcribe(
+        audio_path,
+        language=language,
+        vad_filter=True,
+        beam_size=5,
+    )
 
-    idx = index_start
+    segments = list(segments)
+
+    if not segments:
+        log(
+            f"[Chunk {chunk_index}] "
+            f"No speech detected"
+        )
+
+        with open(
+            txt_path,
+            "w",
+            encoding="utf-8",
+        ) as txt_file:
+            txt_file.write("")
+
+        with open(
+            srt_path,
+            "w",
+            encoding="utf-8",
+        ) as srt_file:
+            srt_file.write("")
+
+        return index_start
 
     with open(
-        tmp_txt,
+        txt_path,
         "w",
         encoding="utf-8",
-    ) as txt, open(
-        tmp_srt,
-        "w",
-        encoding="utf-8",
-    ) as srt:
+    ) as txt_file:
 
-        for seg in segments:
-            start = seg.start + offset
-            end = seg.end + offset
+        with open(
+            srt_path,
+            "w",
+            encoding="utf-8",
+        ) as srt_file:
 
-            text = seg.text.strip()
+            idx = index_start
 
-            txt.write(text + "\n")
+            for segment in segments:
+                text = segment.text.strip()
 
-            srt.write(f"{idx}\n")
-            srt.write(
-                f"{format_ts(start)} "
-                f"--> "
-                f"{format_ts(end)}\n"
-            )
-            srt.write(text + "\n\n")
+                if not text:
+                    continue
 
-            idx += 1
+                txt_file.write(text + "\n")
 
-    os.replace(tmp_txt, txt_path)
-    os.replace(tmp_srt, srt_path)
+                start = (
+                    segment.start + offset
+                )
 
-    log(f"[Chunk {chunk_index}] Transcription complete")
+                end = (
+                    segment.end + offset
+                )
+
+                srt_file.write(
+                    f"{idx}\n"
+                )
+
+                srt_file.write(
+                    f"{format_ts(start)} "
+                    f"--> "
+                    f"{format_ts(end)}\n"
+                )
+
+                srt_file.write(
+                    text + "\n\n"
+                )
+
+                idx += 1
 
     return idx
 
@@ -377,65 +459,72 @@ def merge_outputs(
     video_name,
     total_chunks,
 ):
-    os.makedirs(output_dir, exist_ok=True)
-
-    final_txt = os.path.join(
+    transcript_output = os.path.join(
         output_dir,
         f"{video_name}_transcript.txt",
     )
 
-    final_srt = os.path.join(
+    srt_output = os.path.join(
         output_dir,
-        f"{video_name}_timestamped.srt",
+        f"{video_name}.srt",
     )
 
     log("Merging outputs")
 
     with open(
-        final_txt,
+        transcript_output,
         "w",
         encoding="utf-8",
-    ) as ft, open(
-        final_srt,
-        "w",
-        encoding="utf-8",
-    ) as fs:
-
-        idx = 1
+    ) as txt_out:
 
         for i in range(total_chunks):
-            txt_part = os.path.join(
+            txt_path = os.path.join(
                 base,
                 "transcripts",
                 f"{i}.txt",
             )
 
-            srt_part = os.path.join(
+            if os.path.exists(txt_path):
+                with open(
+                    txt_path,
+                    encoding="utf-8",
+                ) as f:
+                    txt_out.write(
+                        f.read()
+                    )
+                    txt_out.write("\n")
+
+    with open(
+        srt_output,
+        "w",
+        encoding="utf-8",
+    ) as srt_out:
+
+        for i in range(total_chunks):
+            srt_path = os.path.join(
                 base,
                 "srt_parts",
                 f"{i}.srt",
             )
 
-            if os.path.exists(txt_part):
+            if os.path.exists(srt_path):
                 with open(
-                    txt_part,
+                    srt_path,
                     encoding="utf-8",
                 ) as f:
-                    ft.write(f.read())
+                    srt_out.write(
+                        f.read()
+                    )
 
-            if os.path.exists(srt_part):
-                with open(
-                    srt_part,
-                    encoding="utf-8",
-                ) as f:
-                    for line in f:
-                        if line.strip().isdigit():
-                            fs.write(f"{idx}\n")
-                            idx += 1
-                        else:
-                            fs.write(line)
+    log(
+        f"Transcript saved:\n"
+        f"{transcript_output}"
+    )
 
-    log("Merge complete")
+    log(
+        f"SRT saved:\n"
+        f"{srt_output}"
+    )
 
 
 def main():
@@ -460,10 +549,14 @@ def main():
         action="store_true",
     )
 
+    parser.add_argument(
+        "--language",
+        default="en",
+    )
+
     args = parser.parse_args()
 
     video = args.input
-
     work_root = os.environ["WORKING_DIR"]
 
     video_name = os.path.splitext(
@@ -480,15 +573,9 @@ def main():
         video_id,
     )
 
-    if (
-        not args.resume
-        and os.path.exists(base)
-    ):
-        shutil.rmtree(base)
+    global LOG_FILE
 
     ensure_dirs(base)
-
-    global LOG_FILE
 
     LOG_FILE = os.path.join(
         base,
@@ -504,6 +591,14 @@ def main():
             os.path.abspath(video)
         )
 
+    if (
+        not args.resume
+        and os.path.exists(base)
+    ):
+        shutil.rmtree(base)
+
+        ensure_dirs(base)
+
     log(f"Input video: {video}")
 
     duration = get_duration(video)
@@ -517,7 +612,9 @@ def main():
 
     model = WhisperModel(
         get_default_model_path(),
+        device="cpu",
         compute_type="int8",
+        cpu_threads=4,
     )
 
     log("Whisper model loaded")
@@ -532,6 +629,8 @@ def main():
         int(duration // CHUNK_DURATION) + 1
     )
 
+    log(f"Total chunks: {total_chunks}")
+
     global_index = (
         get_existing_index(base)
         if args.resume
@@ -539,14 +638,13 @@ def main():
     )
 
     for i in range(total_chunks):
+        chunk_start = time.time()
+
         chunk_video = os.path.join(
             base,
             "chunks_video",
             f"chunk_{i}.mp4",
         )
-
-        if not os.path.exists(chunk_video):
-            continue
 
         chunk_audio = os.path.join(
             base,
@@ -566,9 +664,17 @@ def main():
             f"{i}.srt",
         )
 
+        if not os.path.exists(chunk_video):
+            continue
+
+        percent = (
+            (i + 1) / total_chunks
+        ) * 100
+
         log(
             f"Processing chunk "
-            f"{i + 1}/{total_chunks}"
+            f"{i + 1}/{total_chunks} "
+            f"({percent:.1f}%)"
         )
 
         extract_audio(
@@ -577,14 +683,39 @@ def main():
             i,
         )
 
+        offset = i * CHUNK_DURATION
+
         global_index = transcribe_chunk(
             model,
             chunk_audio,
             txt_path,
             srt_path,
-            i * CHUNK_DURATION,
+            offset,
             global_index,
             i,
+            args.language,
+        )
+
+        elapsed = (
+            time.time() - chunk_start
+        )
+
+        avg = (
+            time.time() - overall_start
+        ) / (i + 1)
+
+        remaining = avg * (
+            total_chunks - i - 1
+        )
+
+        log(
+            f"Chunk {i} complete "
+            f"in {elapsed:.1f}s"
+        )
+
+        log(
+            f"Estimated remaining: "
+            f"{remaining / 60:.1f} minutes"
         )
 
         print(
