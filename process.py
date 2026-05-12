@@ -1,8 +1,11 @@
 import os
+import time
 import shutil
 import hashlib
 import argparse
 import subprocess
+
+from datetime import datetime
 
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
@@ -10,6 +13,21 @@ from faster_whisper import WhisperModel
 load_dotenv()
 
 CHUNK_DURATION = 60
+LOG_FILE = None
+
+
+def log(msg):
+    global LOG_FILE
+
+    ts = datetime.now().strftime("%H:%M:%S")
+
+    line = f"[{ts}] {msg}"
+
+    print(line, flush=True)
+
+    if LOG_FILE:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
 
 
 def get_ffmpeg_binary(name):
@@ -87,7 +105,10 @@ def validate_environment():
 
     for binary in [FFMPEG, FFPROBE]:
         try:
-            subprocess.check_output([binary, "-version"])
+            subprocess.check_output(
+                [binary, "-version"],
+                stderr=subprocess.STDOUT,
+            )
         except Exception:
             raise Exception(
                 f"Missing binary:\n{binary}\n\n"
@@ -95,27 +116,45 @@ def validate_environment():
             )
 
 
-def run(cmd):
-
+def run(cmd, label=None):
     creationflags = 0
 
     if os.name == "nt":
         creationflags = subprocess.CREATE_NO_WINDOW
 
-    result = subprocess.run(
+    process = subprocess.Popen(
         cmd,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
         creationflags=creationflags,
-        text=True,
     )
 
-    if result.returncode != 0:
+    for line in process.stdout:
+        line = line.strip()
+
+        if not line:
+            continue
+
+        if (
+            "time=" in line
+            or "size=" in line
+            or "speed=" in line
+            or "Duration:" in line
+        ):
+            if label:
+                log(f"[{label}] {line}")
+            else:
+                log(line)
+
+    process.wait()
+
+    if process.returncode != 0:
         raise Exception(
-            f"Command failed:\n{' '.join(cmd)}\n\n"
-            f"STDERR:\n{result.stderr}"
+            f"Command failed:\n{' '.join(cmd)}"
         )
+
 
 def get_duration(video):
     cmd = [
@@ -150,11 +189,16 @@ def ensure_dirs(base):
         "transcripts",
         "srt_parts",
     ]:
-        os.makedirs(os.path.join(base, d), exist_ok=True)
+        os.makedirs(
+            os.path.join(base, d),
+            exist_ok=True,
+        )
 
 
 def hash_path(p):
-    return hashlib.md5(p.encode()).hexdigest()[:8]
+    return hashlib.md5(
+        p.encode()
+    ).hexdigest()[:8]
 
 
 def split_video(video, base, duration):
@@ -162,12 +206,22 @@ def split_video(video, base, duration):
     t = 0
 
     while t < duration:
-        out = os.path.join(base, "chunks_video", f"chunk_{i}.mp4")
+        out = os.path.join(
+            base,
+            "chunks_video",
+            f"chunk_{i}.mp4",
+        )
 
         if os.path.exists(out):
             i += 1
             t += CHUNK_DURATION
             continue
+
+        log(
+            f"Splitting chunk {i} "
+            f"({int(t)}s -> "
+            f"{int(t + CHUNK_DURATION)}s)"
+        )
 
         run(
             [
@@ -183,16 +237,23 @@ def split_video(video, base, duration):
                 "-c",
                 "copy",
                 out,
-            ]
+            ],
+            label=f"Split {i}",
         )
 
         i += 1
         t += CHUNK_DURATION
 
 
-def extract_audio(chunk_path, audio_path):
+def extract_audio(
+    chunk_path,
+    audio_path,
+    chunk_index,
+):
     if os.path.exists(audio_path):
         return
+
+    log(f"[Chunk {chunk_index}] Extracting audio")
 
     run(
         [
@@ -209,14 +270,18 @@ def extract_audio(chunk_path, audio_path):
             "-ac",
             "1",
             audio_path,
-        ]
+        ],
+        label=f"Audio {chunk_index}",
     )
 
 
 def get_existing_index(base):
     idx = 1
 
-    srt_dir = os.path.join(base, "srt_parts")
+    srt_dir = os.path.join(
+        base,
+        "srt_parts",
+    )
 
     if not os.path.exists(srt_dir):
         return idx
@@ -229,7 +294,10 @@ def get_existing_index(base):
         if not os.path.isfile(path):
             continue
 
-        with open(path, encoding="utf-8") as file:
+        with open(
+            path,
+            encoding="utf-8",
+        ) as file:
             for line in file:
                 if line.strip().isdigit():
                     idx += 1
@@ -237,9 +305,24 @@ def get_existing_index(base):
     return idx
 
 
-def transcribe_chunk(model, audio_path, txt_path, srt_path, offset, index_start):
-    if os.path.exists(txt_path) and os.path.exists(srt_path):
+def transcribe_chunk(
+    model,
+    audio_path,
+    txt_path,
+    srt_path,
+    offset,
+    index_start,
+    chunk_index,
+):
+    if (
+        os.path.exists(txt_path)
+        and os.path.exists(srt_path)
+    ):
+        log(f"[Chunk {chunk_index}] Already processed")
+
         return index_start
+
+    log(f"[Chunk {chunk_index}] Transcribing")
 
     segments, _ = model.transcribe(
         audio_path,
@@ -252,7 +335,11 @@ def transcribe_chunk(model, audio_path, txt_path, srt_path, offset, index_start)
 
     idx = index_start
 
-    with open(tmp_txt, "w", encoding="utf-8") as txt, open(
+    with open(
+        tmp_txt,
+        "w",
+        encoding="utf-8",
+    ) as txt, open(
         tmp_srt,
         "w",
         encoding="utf-8",
@@ -261,12 +348,17 @@ def transcribe_chunk(model, audio_path, txt_path, srt_path, offset, index_start)
         for seg in segments:
             start = seg.start + offset
             end = seg.end + offset
+
             text = seg.text.strip()
 
             txt.write(text + "\n")
 
             srt.write(f"{idx}\n")
-            srt.write(f"{format_ts(start)} --> {format_ts(end)}\n")
+            srt.write(
+                f"{format_ts(start)} "
+                f"--> "
+                f"{format_ts(end)}\n"
+            )
             srt.write(text + "\n\n")
 
             idx += 1
@@ -274,10 +366,17 @@ def transcribe_chunk(model, audio_path, txt_path, srt_path, offset, index_start)
     os.replace(tmp_txt, txt_path)
     os.replace(tmp_srt, srt_path)
 
+    log(f"[Chunk {chunk_index}] Transcription complete")
+
     return idx
 
 
-def merge_outputs(base, output_dir, video_name, total_chunks):
+def merge_outputs(
+    base,
+    output_dir,
+    video_name,
+    total_chunks,
+):
     os.makedirs(output_dir, exist_ok=True)
 
     final_txt = os.path.join(
@@ -290,7 +389,13 @@ def merge_outputs(base, output_dir, video_name, total_chunks):
         f"{video_name}_timestamped.srt",
     )
 
-    with open(final_txt, "w", encoding="utf-8") as ft, open(
+    log("Merging outputs")
+
+    with open(
+        final_txt,
+        "w",
+        encoding="utf-8",
+    ) as ft, open(
         final_srt,
         "w",
         encoding="utf-8",
@@ -299,15 +404,30 @@ def merge_outputs(base, output_dir, video_name, total_chunks):
         idx = 1
 
         for i in range(total_chunks):
-            txt_part = os.path.join(base, "transcripts", f"{i}.txt")
-            srt_part = os.path.join(base, "srt_parts", f"{i}.srt")
+            txt_part = os.path.join(
+                base,
+                "transcripts",
+                f"{i}.txt",
+            )
+
+            srt_part = os.path.join(
+                base,
+                "srt_parts",
+                f"{i}.srt",
+            )
 
             if os.path.exists(txt_part):
-                with open(txt_part, encoding="utf-8") as f:
+                with open(
+                    txt_part,
+                    encoding="utf-8",
+                ) as f:
                     ft.write(f.read())
 
             if os.path.exists(srt_part):
-                with open(srt_part, encoding="utf-8") as f:
+                with open(
+                    srt_part,
+                    encoding="utf-8",
+                ) as f:
                     for line in f:
                         if line.strip().isdigit():
                             fs.write(f"{idx}\n")
@@ -315,52 +435,108 @@ def merge_outputs(base, output_dir, video_name, total_chunks):
                         else:
                             fs.write(line)
 
+    log("Merge complete")
+
 
 def main():
+    overall_start = time.time()
+
     validate_environment()
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--input", required=True)
-    parser.add_argument("--output", default=None)
-    parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--input",
+        required=True,
+    )
+
+    parser.add_argument(
+        "--output",
+        default=None,
+    )
+
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
     video = args.input
+
     work_root = os.environ["WORKING_DIR"]
 
-    video_name = os.path.splitext(os.path.basename(video))[0]
+    video_name = os.path.splitext(
+        os.path.basename(video)
+    )[0]
 
-    video_id = f"{video_name}_{hash_path(os.path.abspath(video))}"
+    video_id = (
+        f"{video_name}_"
+        f"{hash_path(os.path.abspath(video))}"
+    )
 
-    base = os.path.join(work_root, video_id)
+    base = os.path.join(
+        work_root,
+        video_id,
+    )
 
-    if args.output:
-        output_dir = os.path.abspath(args.output)
-    else:
-        output_dir = os.path.dirname(os.path.abspath(video))
-
-    if not args.resume and os.path.exists(base):
+    if (
+        not args.resume
+        and os.path.exists(base)
+    ):
         shutil.rmtree(base)
 
     ensure_dirs(base)
 
+    global LOG_FILE
+
+    LOG_FILE = os.path.join(
+        base,
+        "progress.log",
+    )
+
+    if args.output:
+        output_dir = os.path.abspath(
+            args.output
+        )
+    else:
+        output_dir = os.path.dirname(
+            os.path.abspath(video)
+        )
+
+    log(f"Input video: {video}")
+
     duration = get_duration(video)
 
-    print("Loading Whisper model...")
+    log(
+        f"Video duration: "
+        f"{duration / 60:.2f} minutes"
+    )
+
+    log("Loading Whisper model")
 
     model = WhisperModel(
         get_default_model_path(),
         compute_type="int8",
     )
 
-    print("Splitting video...")
-    split_video(video, base, duration)
+    log("Whisper model loaded")
 
-    total_chunks = int(duration // CHUNK_DURATION) + 1
+    split_video(
+        video,
+        base,
+        duration,
+    )
 
-    global_index = get_existing_index(base) if args.resume else 1
+    total_chunks = (
+        int(duration // CHUNK_DURATION) + 1
+    )
+
+    global_index = (
+        get_existing_index(base)
+        if args.resume
+        else 1
+    )
 
     for i in range(total_chunks):
         chunk_video = os.path.join(
@@ -368,6 +544,9 @@ def main():
             "chunks_video",
             f"chunk_{i}.mp4",
         )
+
+        if not os.path.exists(chunk_video):
+            continue
 
         chunk_audio = os.path.join(
             base,
@@ -387,27 +566,31 @@ def main():
             f"{i}.srt",
         )
 
-        if not os.path.exists(chunk_video):
-            continue
+        log(
+            f"Processing chunk "
+            f"{i + 1}/{total_chunks}"
+        )
 
-        print(f"Processing chunk {i}...")
-
-        extract_audio(chunk_video, chunk_audio)
-
-        offset = i * CHUNK_DURATION
+        extract_audio(
+            chunk_video,
+            chunk_audio,
+            i,
+        )
 
         global_index = transcribe_chunk(
             model,
             chunk_audio,
             txt_path,
             srt_path,
-            offset,
+            i * CHUNK_DURATION,
             global_index,
+            i,
         )
 
-        print(f"chunk {i} done")
-
-    print("Merging outputs...")
+        print(
+            f"PROGRESS:{i + 1}:{total_chunks}",
+            flush=True,
+        )
 
     merge_outputs(
         base,
@@ -416,7 +599,14 @@ def main():
         total_chunks,
     )
 
-    print("complete")
+    total_elapsed = (
+        time.time() - overall_start
+    )
+
+    log(
+        f"Complete in "
+        f"{total_elapsed / 60:.1f} minutes"
+    )
 
 
 if __name__ == "__main__":
