@@ -6,6 +6,48 @@ No APIs. No cloud. No data leakage.
 
 ---
 
+# Offline Video → Subtitle Generator GUI
+
+Fully offline desktop subtitle generator.
+
+Designed for non-technical users.
+
+---
+
+# Features
+
+- One-click installer
+- Automatic Python installation
+- Automatic FFmpeg installation
+- Offline Whisper transcription
+- Drag-and-drop GUI
+- Resume interrupted processing
+- Timestamped `.srt` generation
+- Transcript `.txt` generation
+- Long video support
+- Crash-safe processing
+
+---
+
+# Installation
+
+Double click:
+
+```text
+install.bat
+```
+Wait until installation completes.
+
+---
+
+# Launch App
+
+Double click:
+```text
+run_gui.bat
+```
+
+
 ## Features
 
 * Handles long videos (3–4 hours+)
@@ -268,6 +310,8 @@ project/
 ```
 
 ---
+
+
 
 ## License
 

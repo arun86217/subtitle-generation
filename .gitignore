@@ -218,3 +218,13 @@ __marimo__/
 .streamlit/secrets.toml
 
 example*
+
+models/
+.usegpt
+.usegpt/
+venv
+venv/
+
+ffmpeg*
+
+ffmpeg.zip
