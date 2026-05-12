@@ -1,10 +1,3 @@
-# Offline Video → Subtitle Generator
-
-Fully offline pipeline to convert video → transcript (.txt) + subtitles (.srt) with timestamps.
-
-No APIs. No cloud. No data leakage.
-
----
 
 # Offline Video → Subtitle Generator GUI
 
