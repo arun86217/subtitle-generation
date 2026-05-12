@@ -96,11 +96,26 @@ def validate_environment():
 
 
 def run(cmd):
-    result = subprocess.run(cmd)
+
+    creationflags = 0
+
+    if os.name == "nt":
+        creationflags = subprocess.CREATE_NO_WINDOW
+
+    result = subprocess.run(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=creationflags,
+        text=True,
+    )
 
     if result.returncode != 0:
-        raise Exception(f"Command failed: {' '.join(cmd)}")
-
+        raise Exception(
+            f"Command failed:\n{' '.join(cmd)}\n\n"
+            f"STDERR:\n{result.stderr}"
+        )
 
 def get_duration(video):
     cmd = [
@@ -157,11 +172,12 @@ def split_video(video, base, duration):
         run(
             [
                 FFMPEG,
+                "-nostdin",
                 "-y",
-                "-i",
-                video,
                 "-ss",
                 str(t),
+                "-i",
+                video,
                 "-t",
                 str(CHUNK_DURATION),
                 "-c",
@@ -181,6 +197,7 @@ def extract_audio(chunk_path, audio_path):
     run(
         [
             FFMPEG,
+            "-nostdin",
             "-y",
             "-i",
             chunk_path,
