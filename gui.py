@@ -35,12 +35,46 @@ ctk.set_default_color_theme("blue")
 
 
 class App(ctk.CTk):
+
     def __init__(self):
         super().__init__()
 
         self.title(APP_TITLE)
 
-        self.geometry("1000x780")
+        # -------------------------------------------------
+        # Automatic responsive sizing
+        # -------------------------------------------------
+
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+
+        # Use 85% of screen size
+        width = int(screen_width * 0.85)
+        height = int(screen_height * 0.88)
+
+        # Set maximum limits
+        width = min(width, 1700)
+        height = min(height, 1100)
+
+        # Set minimum limits
+        width = max(width, 950)
+        height = max(height, 700)
+
+        # Center window
+        x = int((screen_width - width) / 2)
+        y = int((screen_height - height) / 2)
+
+        self.geometry(
+            f"{width}x{height}+{x}+{y}"
+        )
+
+        self.minsize(900, 650)
+
+        # Start maximized automatically
+        try:
+            self.state("zoomed")
+        except Exception:
+            pass
 
         self.video_path = ctk.StringVar()
 
@@ -61,56 +95,89 @@ class App(ctk.CTk):
         self.build_ui()
 
     def build_ui(self):
+
+        # -------------------------------------------------
+        # Main scrollable container
+        # -------------------------------------------------
+
+        self.scroll_frame = (
+            ctk.CTkScrollableFrame(
+                self,
+                corner_radius=0,
+            )
+        )
+
+        self.scroll_frame.pack(
+            fill="both",
+            expand=True,
+        )
+
+        # -------------------------------------------------
+        # Header
+        # -------------------------------------------------
+
         title = ctk.CTkLabel(
-            self,
+            self.scroll_frame,
             text=(
-                "Offline Video -> "
+                "Offline Video → "
                 "Subtitle Generator"
             ),
             font=(
                 "Arial",
-                28,
+                32,
                 "bold",
             ),
         )
 
-        title.pack(pady=20)
+        title.pack(
+            pady=(25, 10)
+        )
 
         subtitle = ctk.CTkLabel(
-            self,
+            self.scroll_frame,
             text=(
                 "100% Offline • "
                 "No APIs • "
                 "No Cloud"
             ),
-            font=("Arial", 14),
+            font=("Arial", 15),
         )
 
         subtitle.pack(
-            pady=(0, 20)
+            pady=(0, 25)
         )
 
-        frame = ctk.CTkFrame(self)
+        # -------------------------------------------------
+        # Main Content Frame
+        # -------------------------------------------------
+
+        frame = ctk.CTkFrame(
+            self.scroll_frame,
+            corner_radius=15,
+        )
 
         frame.pack(
             fill="both",
             expand=True,
             padx=20,
-            pady=10,
+            pady=(0, 20),
         )
+
+        # -------------------------------------------------
+        # Video Input
+        # -------------------------------------------------
 
         ctk.CTkLabel(
             frame,
             text="Video File",
+            font=("Arial", 16, "bold"),
         ).pack(
             anchor="w",
-            padx=20,
-            pady=(20, 5),
+            padx=25,
+            pady=(25, 8),
         )
 
-        input_frame = ctk.CTkFrame(
-            frame
-        )
+        input_frame = ctk.CTkFrame(frame)
 
         input_frame.pack(
             fill="x",
@@ -120,7 +187,8 @@ class App(ctk.CTk):
         ctk.CTkEntry(
             input_frame,
             textvariable=self.video_path,
-            width=700,
+            height=42,
+            font=("Arial", 14),
         ).pack(
             side="left",
             padx=10,
@@ -133,24 +201,29 @@ class App(ctk.CTk):
             input_frame,
             text="Browse",
             command=self.select_video,
-            width=120,
+            width=130,
+            height=40,
+            font=("Arial", 14, "bold"),
         ).pack(
             side="right",
             padx=10,
         )
 
+        # -------------------------------------------------
+        # Output Folder
+        # -------------------------------------------------
+
         ctk.CTkLabel(
             frame,
             text="Output Folder",
+            font=("Arial", 16, "bold"),
         ).pack(
             anchor="w",
-            padx=20,
-            pady=(20, 5),
+            padx=25,
+            pady=(25, 8),
         )
 
-        output_frame = ctk.CTkFrame(
-            frame
-        )
+        output_frame = ctk.CTkFrame(frame)
 
         output_frame.pack(
             fill="x",
@@ -160,7 +233,8 @@ class App(ctk.CTk):
         ctk.CTkEntry(
             output_frame,
             textvariable=self.output_path,
-            width=700,
+            height=42,
+            font=("Arial", 14),
         ).pack(
             side="left",
             padx=10,
@@ -173,19 +247,26 @@ class App(ctk.CTk):
             output_frame,
             text="Browse",
             command=self.select_output,
-            width=120,
+            width=130,
+            height=40,
+            font=("Arial", 14, "bold"),
         ).pack(
             side="right",
             padx=10,
         )
 
+        # -------------------------------------------------
+        # Language Selection
+        # -------------------------------------------------
+
         ctk.CTkLabel(
             frame,
             text="Subtitle Language",
+            font=("Arial", 16, "bold"),
         ).pack(
             anchor="w",
-            padx=20,
-            pady=(20, 5),
+            padx=25,
+            pady=(25, 8),
         )
 
         language_dropdown = (
@@ -195,7 +276,10 @@ class App(ctk.CTk):
                 values=list(
                     LANGUAGES.keys()
                 ),
-                width=300,
+                width=320,
+                height=42,
+                font=("Arial", 14),
+                dropdown_font=("Arial", 14),
             )
         )
 
@@ -205,6 +289,10 @@ class App(ctk.CTk):
             pady=(0, 20),
         )
 
+        # -------------------------------------------------
+        # Resume Checkbox
+        # -------------------------------------------------
+
         ctk.CTkCheckBox(
             frame,
             text=(
@@ -212,15 +300,18 @@ class App(ctk.CTk):
                 "processing"
             ),
             variable=self.resume_mode,
+            font=("Arial", 14),
         ).pack(
             anchor="w",
-            padx=20,
-            pady=10,
+            padx=25,
+            pady=(0, 20),
         )
 
-        btn_frame = ctk.CTkFrame(
-            frame
-        )
+        # -------------------------------------------------
+        # Buttons
+        # -------------------------------------------------
+
+        btn_frame = ctk.CTkFrame(frame)
 
         btn_frame.pack(
             fill="x",
@@ -232,7 +323,7 @@ class App(ctk.CTk):
             ctk.CTkButton(
                 btn_frame,
                 text="Start Processing",
-                height=50,
+                height=55,
                 font=(
                     "Arial",
                     18,
@@ -254,9 +345,14 @@ class App(ctk.CTk):
             ctk.CTkButton(
                 btn_frame,
                 text="Stop",
-                height=50,
+                height=55,
                 fg_color="red",
                 hover_color="#aa0000",
+                font=(
+                    "Arial",
+                    18,
+                    "bold",
+                ),
                 command=self.stop_processing,
             )
         )
@@ -269,16 +365,20 @@ class App(ctk.CTk):
             pady=10,
         )
 
+        # -------------------------------------------------
+        # Status
+        # -------------------------------------------------
+
         self.status_label = (
             ctk.CTkLabel(
                 frame,
                 text="Ready",
-                font=("Arial", 16),
+                font=("Arial", 18, "bold"),
             )
         )
 
         self.status_label.pack(
-            pady=(10, 5)
+            pady=(20, 5)
         )
 
         self.progress_label = (
@@ -294,31 +394,51 @@ class App(ctk.CTk):
         self.progress_bar = (
             ctk.CTkProgressBar(
                 frame,
-                height=20,
+                height=24,
             )
         )
 
         self.progress_bar.pack(
             fill="x",
             padx=20,
-            pady=10,
+            pady=15,
         )
 
         self.progress_bar.set(0)
 
+        # -------------------------------------------------
+        # Logs
+        # -------------------------------------------------
+
+        ctk.CTkLabel(
+            frame,
+            text="Logs",
+            font=("Arial", 16, "bold"),
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(10, 5),
+        )
+
         self.logs = ctk.CTkTextbox(
             frame,
             height=350,
+            font=("Consolas", 13),
         )
 
         self.logs.pack(
             fill="both",
             expand=True,
             padx=20,
-            pady=20,
+            pady=(0, 25),
         )
 
+    # -------------------------------------------------
+    # Logging
+    # -------------------------------------------------
+
     def log(self, text):
+
         self.logs.insert(
             "end",
             text + "\n",
@@ -328,11 +448,16 @@ class App(ctk.CTk):
 
         self.update()
 
+    # -------------------------------------------------
+    # Progress
+    # -------------------------------------------------
+
     def update_progress(
         self,
         current,
         total,
     ):
+
         if total <= 0:
             return
 
@@ -351,7 +476,12 @@ class App(ctk.CTk):
 
         self.update()
 
+    # -------------------------------------------------
+    # Select Video
+    # -------------------------------------------------
+
     def select_video(self):
+
         path = (
             filedialog.askopenfilename(
                 filetypes=[
@@ -370,38 +500,55 @@ class App(ctk.CTk):
         )
 
         if path:
+
             self.video_path.set(path)
 
             if not self.output_path.get():
+
                 self.output_path.set(
                     os.path.dirname(path)
                 )
 
+    # -------------------------------------------------
+    # Select Output
+    # -------------------------------------------------
+
     def select_output(self):
+
         path = (
             filedialog.askdirectory()
         )
 
         if path:
+
             self.output_path.set(path)
 
+    # -------------------------------------------------
+    # Start Processing
+    # -------------------------------------------------
+
     def start_processing(self):
+
         video = (
             self.video_path.get().strip()
         )
 
         if not video:
+
             messagebox.showerror(
                 "Error",
                 "Please select a video file",
             )
+
             return
 
         if not os.path.exists(video):
+
             messagebox.showerror(
                 "Error",
                 "Selected video does not exist",
             )
+
             return
 
         self.logs.delete(
@@ -423,7 +570,12 @@ class App(ctk.CTk):
 
         thread.start()
 
+    # -------------------------------------------------
+    # Run Process
+    # -------------------------------------------------
+
     def run_process(self):
+
         self.start_btn.configure(
             state="disabled"
         )
@@ -448,18 +600,21 @@ class App(ctk.CTk):
         ]
 
         if output:
+
             cmd += [
                 "--output",
                 output,
             ]
 
         if language:
+
             cmd += [
                 "--language",
                 language,
             ]
 
         if self.resume_mode.get():
+
             cmd.append("--resume")
 
         self.log(
@@ -473,9 +628,11 @@ class App(ctk.CTk):
         )
 
         try:
+
             creationflags = 0
 
             if os.name == "nt":
+
                 creationflags = (
                     subprocess.CREATE_NO_WINDOW
                 )
@@ -490,6 +647,7 @@ class App(ctk.CTk):
             )
 
             for line in self.process.stdout:
+
                 line = line.strip()
 
                 if not line:
@@ -498,7 +656,9 @@ class App(ctk.CTk):
                 if line.startswith(
                     "PROGRESS:"
                 ):
+
                     try:
+
                         (
                             _,
                             current,
@@ -520,6 +680,7 @@ class App(ctk.CTk):
             self.process.wait()
 
             if self.process.returncode == 0:
+
                 self.status_label.configure(
                     text="Complete"
                 )
@@ -541,6 +702,7 @@ class App(ctk.CTk):
                 )
 
             else:
+
                 self.status_label.configure(
                     text="Failed"
                 )
@@ -555,6 +717,7 @@ class App(ctk.CTk):
                 )
 
         except Exception as e:
+
             self.log(str(e))
 
             messagebox.showerror(
@@ -566,8 +729,14 @@ class App(ctk.CTk):
             state="normal"
         )
 
+    # -------------------------------------------------
+    # Stop Processing
+    # -------------------------------------------------
+
     def stop_processing(self):
+
         if self.process:
+
             self.process.terminate()
 
             self.log(
