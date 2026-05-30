@@ -459,6 +459,12 @@ def merge_outputs(
     video_name,
     total_chunks,
 ):
+    # ensure output folder exists before writing
+    os.makedirs(
+        output_dir,
+        exist_ok=True,
+    )
+
     transcript_output = os.path.join(
         output_dir,
         f"{video_name}_transcript.txt",
@@ -525,7 +531,6 @@ def merge_outputs(
         f"SRT saved:\n"
         f"{srt_output}"
     )
-
 
 def main():
     overall_start = time.time()
