@@ -459,7 +459,6 @@ def merge_outputs(
     video_name,
     total_chunks,
 ):
-    # ensure output folder exists before writing
     os.makedirs(
         output_dir,
         exist_ok=True,
@@ -595,6 +594,11 @@ def main():
         output_dir = os.path.dirname(
             os.path.abspath(video)
         )
+
+    os.makedirs(
+        output_dir,
+        exist_ok=True,
+    )
 
     if (
         not args.resume
