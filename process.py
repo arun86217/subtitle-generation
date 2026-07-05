@@ -189,21 +189,79 @@ def run(cmd, label=None):
 
 
 def get_duration(video):
-    cmd = [
-        FFPROBE,
-        "-v",
-        "error",
-        "-show_entries",
-        "format=duration",
-        "-of",
-        "default=noprint_wrappers=1:nokey=1",
-        video,
+    """
+    Returns duration in seconds.
+
+    Tries multiple ffprobe methods because some WebM recordings report
+    format duration as N/A.
+    """
+
+    commands = [
+        [
+            FFPROBE,
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            video,
+        ],
+        [
+            FFPROBE,
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            video,
+        ],
     ]
 
-    out = subprocess.check_output(cmd).decode().strip()
+    for cmd in commands:
+        try:
+            out = subprocess.check_output(
+                cmd,
+                stderr=subprocess.STDOUT,
+            ).decode().strip()
 
-    return float(out)
+            if (
+                out
+                and out != "N/A"
+                and out.lower() != "nan"
+            ):
+                value = float(out)
 
+                if value > 0:
+                    return value
+
+        except Exception:
+            pass
+
+    # Last fallback:
+    # Ask ffmpeg to decode the file and read the reported duration.
+    try:
+        proc = subprocess.run(
+            [
+                FFMPEG,
+                "-i",
+                video,
+                "-f",
+                "null",
+                "-",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+        import re
+
+        match = re.search(
+            r"Duration:\s*(\d+):(\d+):(\d+\.\d+)",
 
 def format_ts(t):
     h = int(t // 3600)
@@ -459,22 +517,37 @@ def merge_outputs(
     video_name,
     total_chunks,
 ):
+    output_dir = os.path.abspath(
+        os.path.expanduser(output_dir)
+    )
+
+    transcript_output = os.path.abspath(
+        os.path.join(
+            output_dir,
+            f"{video_name}_transcript.txt",
+        )
+    )
+
+    srt_output = os.path.abspath(
+        os.path.join(
+            output_dir,
+            f"{video_name}.srt",
+        )
+    )
+
     os.makedirs(
-        output_dir,
+        os.path.dirname(transcript_output),
         exist_ok=True,
     )
 
-    transcript_output = os.path.join(
-        output_dir,
-        f"{video_name}_transcript.txt",
+    os.makedirs(
+        os.path.dirname(srt_output),
+        exist_ok=True,
     )
 
-    srt_output = os.path.join(
-        output_dir,
-        f"{video_name}.srt",
+    log(
+        f"Merging outputs into: {output_dir}"
     )
-
-    log("Merging outputs")
 
     with open(
         transcript_output,
