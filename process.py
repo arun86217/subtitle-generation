@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
-[DONE]
+Then in main(), replace:
 
 load_dotenv()
 
@@ -835,3 +835,37 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def remux_webm(video):
+    """
+    Rewrite the container without re-encoding.
+
+    Chrome MediaRecorder files often have Duration=N/A.
+    FFmpeg can usually rebuild the container and write proper metadata.
+    """
+
+    base, ext = os.path.splitext(video)
+
+    output = base + "_fixed" + ext
+
+    if os.path.exists(output):
+        return output
+
+    run(
+        [
+            FFMPEG,
+            "-nostdin",
+            "-y",
+            "-fflags",
+            "+genpts",
+            "-i",
+            video,
+            "-c",
+            "copy",
+            output,
+        ],
+        label="Remux",
+    )
+
+    return output
+
