@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
-Then enumerate the generated chunk files instead of computing total_chunks from the duration.
+Then remove the duration dependency in main():
 
 load_dotenv()
 
@@ -725,6 +725,7 @@ def main():
         video = remux_webm(video)
 
         duration = get_duration(video)
+
 
     log(
         f"Video duration: "
