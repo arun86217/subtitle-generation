@@ -8,6 +8,7 @@ import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
+[DONE]
 
 load_dotenv()
 
@@ -228,21 +229,14 @@ def get_duration(video):
                 stderr=subprocess.STDOUT,
             ).decode().strip()
 
-            if (
-                out
-                and out != "N/A"
-                and out.lower() != "nan"
-            ):
+            if out and out != "N/A" and out.lower() != "nan":
                 value = float(out)
-
                 if value > 0:
                     return value
 
         except Exception:
             pass
 
-    # Last fallback:
-    # Ask ffmpeg to decode the file and read the reported duration.
     try:
         proc = subprocess.run(
             [
@@ -262,6 +256,23 @@ def get_duration(video):
 
         match = re.search(
             r"Duration:\s*(\d+):(\d+):(\d+\.\d+)",
+            proc.stdout,
+        )
+
+        if match:
+            h = int(match.group(1))
+            m = int(match.group(2))
+            s = float(match.group(3))
+            return h * 3600 + m * 60 + s
+
+    except Exception:
+        pass
+
+    raise Exception(
+        "Unable to determine video duration.\n"
+        "The input file appears to have no valid duration metadata "
+        "or is corrupted."
+    )
 
 def format_ts(t):
     h = int(t // 3600)
