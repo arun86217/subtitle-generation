@@ -8,6 +8,7 @@ import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
+[DONE]
 Then in main(), replace:
 
 load_dotenv()
@@ -845,7 +846,6 @@ def remux_webm(video):
     """
 
     base, ext = os.path.splitext(video)
-
     output = base + "_fixed" + ext
 
     if os.path.exists(output):
@@ -868,4 +868,3 @@ def remux_webm(video):
     )
 
     return output
-
