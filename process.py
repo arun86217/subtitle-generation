@@ -8,13 +8,45 @@ import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
-[DONE]
-Then in main(), replace:
+Then enumerate the generated chunk files instead of computing total_chunks from the duration.
 
 load_dotenv()
 
 CHUNK_DURATION = 60
 LOG_FILE = None
+
+
+def remux_webm(video):
+    """
+    Rewrite the container without re-encoding.
+
+    Chrome MediaRecorder files often have Duration=N/A.
+    FFmpeg can usually rebuild the container and write proper metadata.
+    """
+
+    base, ext = os.path.splitext(video)
+    output = base + "_fixed" + ext
+
+    if os.path.exists(output):
+        return output
+
+    run(
+        [
+            FFMPEG,
+            "-nostdin",
+            "-y",
+            "-fflags",
+            "+genpts",
+            "-i",
+            video,
+            "-c",
+            "copy",
+            output,
+        ],
+        label="Remux",
+    )
+
+    return output
 
 
 def log(msg):
@@ -305,48 +337,36 @@ def hash_path(p):
     ).hexdigest()[:8]
 
 
-def split_video(video, base, duration):
-    i = 0
-    t = 0
+def split_video(video, base):
+    output_pattern = os.path.join(
+        base,
+        "chunks_video",
+        "chunk_%04d.mp4",
+    )
 
-    while t < duration:
-        out = os.path.join(
-            base,
-            "chunks_video",
-            f"chunk_{i}.mp4",
-        )
+    log("Splitting video into chunks...")
 
-        if os.path.exists(out):
-            i += 1
-            t += CHUNK_DURATION
-            continue
-
-        log(
-            f"Splitting chunk {i} "
-            f"({int(t)}s -> "
-            f"{int(t + CHUNK_DURATION)}s)"
-        )
-
-        run(
-            [
-                FFMPEG,
-                "-nostdin",
-                "-y",
-                "-ss",
-                str(t),
-                "-i",
-                video,
-                "-t",
-                str(CHUNK_DURATION),
-                "-c",
-                "copy",
-                out,
-            ],
-            label=f"Split {i}",
-        )
-
-        i += 1
-        t += CHUNK_DURATION
+    run(
+        [
+            FFMPEG,
+            "-nostdin",
+            "-y",
+            "-i",
+            video,
+            "-map",
+            "0",
+            "-c",
+            "copy",
+            "-f",
+            "segment",
+            "-segment_time",
+            str(CHUNK_DURATION),
+            "-reset_timestamps",
+            "1",
+            output_pattern,
+        ],
+        label="Split",
+    )
 
 
 def extract_audio(
@@ -695,7 +715,16 @@ def main():
 
     log(f"Input video: {video}")
 
-    duration = get_duration(video)
+    try:
+
+        duration = get_duration(video)
+
+    except Exception:
+        log("Duration metadata missing. Remuxing Chrome recording...")
+
+        video = remux_webm(video)
+
+        duration = get_duration(video)
 
     log(
         f"Video duration: "
@@ -837,34 +866,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-def remux_webm(video):
-    """
-    Rewrite the container without re-encoding.
-
-    Chrome MediaRecorder files often have Duration=N/A.
-    FFmpeg can usually rebuild the container and write proper metadata.
-    """
-
-    base, ext = os.path.splitext(video)
-    output = base + "_fixed" + ext
-
-    if os.path.exists(output):
-        return output
-
-    run(
-        [
-            FFMPEG,
-            "-nostdin",
-            "-y",
-            "-fflags",
-            "+genpts",
-            "-i",
-            video,
-            "-c",
-            "copy",
-            output,
-        ],
-        label="Remux",
-    )
-
-    return output
