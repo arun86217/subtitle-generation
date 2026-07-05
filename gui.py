@@ -80,6 +80,16 @@ class App(ctk.CTk):
 
         self.output_path = ctk.StringVar()
 
+        self.working_dir = ctk.StringVar(
+            value=os.environ.get(
+                "WORKING_DIR"
+            )
+            or os.path.join(
+                os.getcwd(),
+                "workdir",
+            )
+        )
+
         self.resume_mode = ctk.BooleanVar(
             value=True
         )
@@ -247,6 +257,56 @@ class App(ctk.CTk):
             output_frame,
             text="Browse",
             command=self.select_output,
+            width=130,
+            height=40,
+            font=("Arial", 14, "bold"),
+        ).pack(
+            side="right",
+            padx=10,
+        )
+
+        # -------------------------------------------------
+        # Working Folder (temp/chunk processing space)
+        # -------------------------------------------------
+
+        ctk.CTkLabel(
+            frame,
+            text=(
+                "Working Folder "
+                "(temp files - needs "
+                "free disk space)"
+            ),
+            font=("Arial", 16, "bold"),
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(25, 8),
+        )
+
+        working_dir_frame = ctk.CTkFrame(frame)
+
+        working_dir_frame.pack(
+            fill="x",
+            padx=20,
+        )
+
+        ctk.CTkEntry(
+            working_dir_frame,
+            textvariable=self.working_dir,
+            height=42,
+            font=("Arial", 14),
+        ).pack(
+            side="left",
+            padx=10,
+            pady=10,
+            fill="x",
+            expand=True,
+        )
+
+        ctk.CTkButton(
+            working_dir_frame,
+            text="Browse",
+            command=self.select_working_dir,
             width=130,
             height=40,
             font=("Arial", 14, "bold"),
@@ -524,6 +584,20 @@ class App(ctk.CTk):
             self.output_path.set(path)
 
     # -------------------------------------------------
+    # Select Working Folder
+    # -------------------------------------------------
+
+    def select_working_dir(self):
+
+        path = (
+            filedialog.askdirectory()
+        )
+
+        if path:
+
+            self.working_dir.set(path)
+
+    # -------------------------------------------------
     # Start Processing
     # -------------------------------------------------
 
@@ -617,6 +691,16 @@ class App(ctk.CTk):
 
             cmd.append("--resume")
 
+        env = os.environ.copy()
+
+        working_dir = (
+            self.working_dir.get().strip()
+        )
+
+        if working_dir:
+
+            env["WORKING_DIR"] = working_dir
+
         self.log(
             "Starting processing..."
         )
@@ -644,6 +728,7 @@ class App(ctk.CTk):
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
                 creationflags=creationflags,
+                env=env,
             )
 
             for line in self.process.stdout:
